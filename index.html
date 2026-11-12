@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}</style>
+</head>
+<body>
+<title>背誦小幫手</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap">
+<style>
+/* Layout: one column workbench, three steps (文章 → 背誦 → 結果) as tabs at top; large touch targets for iPad */
+:root{
+  --bg:#f4f7f6; --surface:#ffffff; --ink:#1d2b33; --muted:#5d6f78; --line:#d6e0e0;
+  --accent:#1f6f5c; --accent-ink:#ffffff; --accent-soft:#e1efeb;
+  --bad:#c0392b; --bad-soft:#fbe6e3; --warn:#a86a00; --warn-soft:#fdf1d8;
+  --ins:#2c5fa8; --ins-soft:#e3ecf9; --miss:#9aa7ad;
+  --f-display:"Noto Serif TC","Songti TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Heiti TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121a1e; --surface:#1a252a; --ink:#e4ecee; --muted:#9db0b6; --line:#2d3c42;
+  --accent:#5cc0a3; --accent-ink:#0d1f1a; --accent-soft:#1d3a33;
+  --bad:#ff8a7a; --bad-soft:#3d2320; --warn:#f0b84a; --warn-soft:#3a2f17;
+  --ins:#8fb5ff; --ins-soft:#1e2c45; --miss:#6c7d84; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121a1e; --surface:#1a252a; --ink:#e4ecee; --muted:#9db0b6; --line:#2d3c42;
+  --accent:#5cc0a3; --accent-ink:#0d1f1a; --accent-soft:#1d3a33;
+  --bad:#ff8a7a; --bad-soft:#3d2320; --warn:#f0b84a; --warn-soft:#3a2f17;
+  --ins:#8fb5ff; --ins-soft:#1e2c45; --miss:#6c7d84; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:900px;margin:0 auto;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px}
+h1{font-family:var(--f-display);font-size:30px;margin:0;letter-spacing:.04em}
+h2{font-family:var(--f-display);font-size:21px;margin:0}
+.sub{color:var(--muted);font-size:15px}
+nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px}
+nav button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:500;padding:12px 4px;border-radius:10px;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 200px;min-width:0}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted);font-weight:500}
+input[type=text],select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;width:100%}
+textarea{min-height:160px;resize:vertical;line-height:1.8}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn{font:inherit;font-weight:700;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:12px 20px;cursor:pointer;min-height:48px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn.big{font-size:20px;padding:16px 28px;min-height:60px}
+.btn:disabled{opacity:.45;cursor:default}
+.hint{font-size:14px;color:var(--muted);margin:0}
+.lib{display:flex;flex-direction:column;gap:8px}
+.lib-item{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;background:var(--bg)}
+.lib-item.sel{border-color:var(--accent);background:var(--accent-soft)}
+.lib-item .t{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lib-item .n{font-size:13px;color:var(--muted);white-space:nowrap}
+.lib-item .x{border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--warn-soft);color:var(--warn);font-weight:500}
+.cur{font-family:var(--f-display);font-size:19px}
+.timer{font-variant-numeric:tabular-nums;font-size:34px;font-weight:700;font-family:var(--f-display)}
+.live{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:var(--bad)}
+.live::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--bad);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.live::before{animation:none}}
+.steps{margin:0;padding-left:22px;color:var(--muted);font-size:15px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--bg)}
+.stat .k{font-size:13px;color:var(--muted)}
+.stat .v{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;font-family:var(--f-display);line-height:1.2}
+.stat .v small{font-size:15px;font-weight:500;color:var(--muted)}
+.pill{display:inline-block;font-size:13px;font-weight:700;border-radius:99px;padding:2px 10px;margin-top:4px}
+.pill.good{background:var(--accent-soft);color:var(--accent)}
+.pill.mid{background:var(--warn-soft);color:var(--warn)}
+.pill.low{background:var(--bad-soft);color:var(--bad)}
+.diff{font-family:var(--f-display);font-size:26px;line-height:2.3;letter-spacing:.06em;word-break:break-all;overflow-wrap:anywhere}
+.diff.en{letter-spacing:0;font-size:22px}
+.tok{position:relative;border-radius:4px;cursor:pointer;padding:0 1px}
+.tok.sub{color:var(--bad);background:var(--bad-soft)}
+.tok.homo{color:var(--warn);background:var(--warn-soft)}
+.tok.del{color:var(--miss);text-decoration:line-through;text-decoration-color:var(--bad);text-decoration-thickness:2px}
+.tok.fixed{color:var(--ink);background:transparent;text-decoration:underline dotted var(--accent)}
+.tok .said{position:absolute;left:50%;top:-1.15em;transform:translateX(-50%);font-size:13px;line-height:1;white-space:nowrap;color:inherit;font-family:var(--f-body);letter-spacing:0}
+.ins{font-size:14px;color:var(--ins);background:var(--ins-soft);border-radius:4px;padding:1px 4px;margin:0 2px;font-family:var(--f-body);letter-spacing:0;vertical-align:middle}
+.pause{font-size:13px;color:var(--ins);font-family:var(--f-body);vertical-align:super;letter-spacing:0;margin:0 1px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px;color:var(--muted)}
+.legend span b{font-weight:500;border-radius:4px;padding:0 4px}
+.toggle{display:flex;align-items:center;gap:8px;font-size:15px}
+.toggle input{width:22px;height:22px;accent-color:var(--accent)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:13px}
+.empty{color:var(--muted);text-align:center;padding:24px 0}
+.msg{font-size:15px;padding:10px 14px;border-radius:10px;background:var(--warn-soft);color:var(--warn)}
+.msg.ok{background:var(--accent-soft);color:var(--accent)}
+.heard{font-size:15px;color:var(--muted);background:var(--bg);border-radius:10px;padding:12px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>背誦小幫手</h1>
+    <span class="sub">上傳課文 → 學生背誦 → 自動比對精確度與流暢度</span>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" id="tab-text" aria-selected="true" data-tab="text">① 文章</button>
+    <button role="tab" id="tab-rec" aria-selected="false" data-tab="rec">② 背誦</button>
+    <button role="tab" id="tab-res" aria-selected="false" data-tab="res">③ 結果</button>
+    <button role="tab" id="tab-log" aria-selected="false" data-tab="log">④ 紀錄</button>
+  </nav>
+
+  <!-- 文章 -->
+  <section class="panel" id="p-text">
+    <h2>文章庫</h2>
+    <div class="lib" id="lib"></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:4px 0;width:100%">
+    <h2 id="formHead">新增文章</h2>
+    <div class="row">
+      <label class="f grow">標題<input type="text" id="newTitle" placeholder="例如：第五課 春夜喜雨"></label>
+      <label class="f" style="flex:0 0 150px">語言
+        <select id="newLang"><option value="zh">中文</option><option value="en">English</option></select>
+      </label>
+    </div>
+    <label class="f">內容（可直接貼上，或上傳 .txt / .docx 檔）
+      <textarea id="newBody" placeholder="把課文貼在這裡…"></textarea>
+    </label>
+    <div class="row">
+      <label class="btn" for="file" style="display:inline-flex;align-items:center">上傳檔案</label>
+      <input type="file" id="file" accept=".txt,.docx,text/plain" hidden>
+      <button class="btn primary" id="saveArt">加入文章庫</button>
+      <button class="btn" id="cancelEdit" hidden>取消修改</button>
+      <span class="hint" id="fileMsg"></span>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:4px 0;width:100%">
+    <h2>學生名單</h2>
+    <label class="f">一行一位，例如「1 王小明」。也可以直接從 Excel 貼上「姓名、座號」兩欄。
+      <textarea id="rosterBox" style="min-height:120px" placeholder="1 王小明&#10;2 李小華"></textarea>
+    </label>
+    <div class="row">
+      <button class="btn primary" id="saveRoster">儲存名單</button>
+      <span class="hint" id="rosterMsg"></span>
+    </div>
+  </section>
+
+  <!-- 背誦 -->
+  <section class="panel" id="p-rec" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div class="grow"><div class="hint">背誦文章</div><div class="cur" id="curTitle">—</div></div>
+      <label class="f" style="flex:0 1 220px">學生姓名／座號
+        <select id="student"><option value="">請選擇學生</option></select>
+      </label>
+    </div>
+
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <button class="btn primary big" id="micBtn" hidden>🎤 開始背誦</button>
+        <button class="btn big" id="kbBtn">⌨️ 用鍵盤聽寫背誦</button>
+        <button class="btn big danger" id="stopBtn" hidden>■ 背完了</button>
+      </div>
+      <div style="text-align:right">
+        <div class="timer" id="timer">0:00</div>
+        <div id="liveTag" hidden><span class="live">聆聽中</span></div>
+      </div>
+    </div>
+
+    <ol class="steps" id="kbSteps">
+      <li>按「用鍵盤聽寫背誦」，下方方框會出現鍵盤。</li>
+      <li>點 iPad 或手機鍵盤上的 <b>🎤 麥克風</b>（語言選中文），請學生開始背。</li>
+      <li>背完後按「背完了」。計時從第一個字出現時開始。</li>
+    </ol>
+    <p class="hint" id="kbNote">iPad／iPhone 第一次使用：到「設定 → 一般 → 鍵盤」開啟「聽寫」，並加入「中文（台灣）」鍵盤。Android 手機請用 Gboard 鍵盤上的麥克風。</p>
+
+    <label class="f">辨識到的內容（背完後可以修正明顯的辨識錯誤）
+      <textarea id="heard" placeholder="學生背誦的文字會出現在這裡…"></textarea>
+    </label>
+    <div class="row">
+      <button class="btn primary" id="gradeBtn">比對結果 →</button>
+      <button class="btn" id="clearBtn">清除重來</button>
+      <button class="btn" id="demoBtn">填入範例背誦</button>
+    </div>
+    <div class="msg" id="recMsg" hidden></div>
+  </section>
+
+  <!-- 結果 -->
+  <section class="panel" id="p-res" hidden>
+    <div id="resEmpty" class="empty">還沒有結果。先到「② 背誦」讓學生背一次。</div>
+    <div id="resBody" hidden style="display:flex;flex-direction:column;gap:16px">
+      <div class="row" style="justify-content:space-between">
+        <div><div class="hint" id="resWho"></div><h2 id="resTitle"></h2></div>
+        <button class="btn primary" id="saveRec">儲存到紀錄</button>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="legend">
+        <span><b style="color:var(--bad);background:var(--bad-soft)">錯字</b> 上方小字是唸成的字</span>
+        <span><b style="color:var(--warn);background:var(--warn-soft)">同音</b> 可能是語音辨識誤差</span>
+        <span><b style="color:var(--miss);text-decoration:line-through">漏字</b></span>
+        <span><b style="color:var(--ins);background:var(--ins-soft)">+多唸</b></span>
+        <span><b style="color:var(--ins)">⏸</b> 停頓超過 2 秒</span>
+      </div>
+      <label class="toggle"><input type="checkbox" id="homoOk" checked> 同音字算對（建議開啟，語音辨識常把同音字寫錯）</label>
+      <p class="hint">老師可以點任何標紅或漏掉的字，把它改判為「正確」；再點一次恢復。</p>
+      <div class="diff" id="diff"></div>
+      <details>
+        <summary class="hint" style="cursor:pointer">看學生唸出的原始文字</summary>
+        <div class="heard" id="rawHeard"></div>
+      </details>
+      <div class="msg ok" id="resMsg" hidden></div>
+    </div>
+  </section>
+
+  <!-- 紀錄 -->
+  <section class="panel" id="p-log" hidden>
+    <div class="row" style="justify-content:space-between">
+      <h2>背誦紀錄</h2>
+      <div class="row"><button class="btn" id="copyLog">複製成表格</button><button class="btn danger" id="clearLog">清空紀錄</button></div>
+    </div>
+    <div class="tablewrap"><table id="logTable"></table></div>
+    <p class="hint">紀錄存在這台 iPad 的瀏覽器裡。「複製成表格」可直接貼到 Excel 或 Google 試算表。</p>
+    <div class="msg" id="logMsg" hidden></div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.26.0/dist/index.js"></script>
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const SAMPLES = [
+  {id:'s1', title:'靜夜思（李白）', lang:'zh', sample:true, body:'床前明月光，疑是地上霜。舉頭望明月，低頭思故鄉。'},
+  {id:'s2', title:'登鸛雀樓（王之渙）', lang:'zh', sample:true, body:'白日依山盡，黃河入海流。欲窮千里目，更上一層樓。'},
+  {id:'s3', title:'春曉（孟浩然）', lang:'zh', sample:true, body:'春眠不覺曉，處處聞啼鳥。夜來風雨聲，花落知多少。'}
+];
+let lib = store.get('rc_lib', null) || SAMPLES.slice();
+let curId = store.get('rc_cur', lib[0] && lib[0].id);
+let logs = store.get('rc_logs', []);
+const saveLib = () => store.set('rc_lib', lib);
+const cur = () => lib.find(a => a.id === curId) || lib[0];
+
+/* ---------- tabs ---------- */
+function showTab(name){
+  document.querySelectorAll('nav button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === name));
+  ['text','rec','res','log'].forEach(t => $('p-'+t).hidden = t !== name);
+  if(name === 'log') renderLog();
+  if(name === 'rec') $('curTitle').textContent = cur() ? cur().title : '請先選一篇文章';
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* ---------- library ---------- */
+function renderLib(){
+  const el = $('lib'); el.textContent = '';
+  if(!lib.length){ el.innerHTML = '<div class="empty">文章庫是空的，請在下方新增。</div>'; return; }
+  lib.forEach(a => {
+    const d = document.createElement('div');
+    d.className = 'lib-item' + (a.id === curId ? ' sel' : '');
+    const t = document.createElement('span'); t.className = 't'; t.textContent = a.title;
+    d.appendChild(t);
+    if(a.sample){ const s = document.createElement('span'); s.className='tag'; s.textContent='範例'; d.appendChild(s); }
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = tokenize(a.body, a.lang).length + (a.lang==='en'?' 字詞':' 字');
+    d.appendChild(n);
+    const ed = document.createElement('button'); ed.className='x'; ed.textContent='✎ 修改'; ed.style.fontSize='15px'; ed.style.color='var(--accent)'; ed.setAttribute('aria-label','修改 '+a.title);
+    ed.onclick = e => { e.stopPropagation(); startEdit(a); };
+    d.appendChild(ed);
+    const x = document.createElement('button'); x.className='x'; x.textContent='×'; x.setAttribute('aria-label','刪除 '+a.title);
+    x.onclick = e => { e.stopPropagation();
+      if(x.dataset.armed){ lib = lib.filter(z => z.id !== a.id); if(curId===a.id) curId = lib[0] && lib[0].id; saveLib(); store.set('rc_cur',curId); renderLib(); }
+      else { x.dataset.armed = 1; x.textContent = '確定刪除？'; x.style.fontSize='14px'; x.style.color='var(--bad)'; setTimeout(()=>{ if(x.isConnected){ delete x.dataset.armed; x.textContent='×'; x.style=''; } }, 3000); }
+    };
+    d.appendChild(x);
+    d.onclick = () => { curId = a.id; store.set('rc_cur', curId); renderLib(); showTab('rec'); };
+    el.appendChild(d);
+  });
+}
+$('file').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  $('fileMsg').textContent = '讀取中…';
+  try{
+    let text;
+    if(/\.docx$/i.test(f.name)){
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+      text = (await mammoth.extractRawText({arrayBuffer: await f.arrayBuffer()})).value;
+    } else {
+      text = await f.text();
+      if(text.includes(String.fromCharCode(0xFFFD))){ // 可能是 Big5 編碼
+        try{ text = new TextDecoder('big5').decode(await f.arrayBuffer()); }catch(_){}
+      }
+    }
+    $('newBody').value = text.trim();
+    if(!$('newTitle').value) $('newTitle').value = f.name.replace(/\.[^.]+$/,'');
+    $('newLang').value = /[一-鿿]/.test(text) ? 'zh' : 'en';
+    $('fileMsg').textContent = '已讀入「'+f.name+'」，確認內容後按「加入文章庫」。';
+  }catch(err){ $('fileMsg').textContent = '讀不到這個檔案，請改用 .txt 或 .docx，或直接貼上內容。'; }
+  e.target.value = '';
+};
+function loadScript(src){ return new Promise((ok,no)=>{ if(document.querySelector('script[src="'+src+'"]')) return ok(); const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=no; document.head.appendChild(s); }); }
+let editingId = null;
+function setEditMode(id){
+  editingId = id;
+  $('formHead').textContent = id ? '修改文章' : '新增文章';
+  $('saveArt').textContent = id ? '儲存修改' : '加入文章庫';
+  $('cancelEdit').hidden = !id;
+}
+function startEdit(a){
+  setEditMode(a.id);
+  $('newTitle').value = a.title; $('newLang').value = a.lang; $('newBody').value = a.body;
+  $('fileMsg').textContent = '正在修改「'+a.title+'」，改好後按「儲存修改」。';
+  $('formHead').scrollIntoView({behavior:'smooth', block:'start'});
+}
+$('cancelEdit').onclick = () => { setEditMode(null); $('newBody').value=''; $('newTitle').value=''; $('fileMsg').textContent=''; };
+$('saveArt').onclick = () => {
+  const body = $('newBody').value.trim(), title = $('newTitle').value.trim() || body.slice(0,10);
+  if(!body){ $('fileMsg').textContent = '請先貼上或上傳文章內容。'; return; }
+  const old = editingId && lib.find(z => z.id === editingId);
+  if(old){
+    old.title = title; old.lang = $('newLang').value; old.body = body; delete old.sample;
+    $('fileMsg').textContent = '已儲存「'+title+'」的修改。';
+  } else {
+    const a = {id:'a'+Date.now(), title, lang:$('newLang').value, body};
+    lib.unshift(a); curId = a.id;
+    $('fileMsg').textContent = '已加入「'+title+'」。';
+  }
+  saveLib(); store.set('rc_cur', curId);
+  setEditMode(null); $('newBody').value = ''; $('newTitle').value = '';
+  renderLib();
+};
+
+/* ---------- text normalisation ---------- */
+const DIG = '零一二三四五六七八九';
+function tokenize(s, lang){
+  s = (s||'').normalize('NFKC');
+  if(lang === 'en') return (s.toLowerCase().match(/[a-z0-9']+/g) || []).map(w => w.replace(/^'+|'+$/g,'')).filter(Boolean);
+  const out = [];
+  for(const ch of s){ if(/[\p{L}\p{N}]/u.test(ch)) out.push(/[0-9]/.test(ch) ? DIG[+ch] : ch); }
+  return out;
+}
+const pyCache = new Map();
+function pinyins(ch){
+  if(pyCache.has(ch)) return pyCache.get(ch);
+  let set = null;
+  try{
+    if(window.pinyinPro && /[㐀-鿿]/.test(ch)){
+      const r = pinyinPro.pinyin(ch, {toneType:'none', multiple:true, type:'array'});
+      set = new Set((Array.isArray(r) ? r : String(r).split(' ')).map(x => x.replace(/v/g,'ü')));
+    }
+  }catch(e){}
+  pyCache.set(ch, set); return set;
+}
+function homophone(a, b){
+  const A = pinyins(a), B = pinyins(b); if(!A || !B) return false;
+  for(const x of A) if(B.has(x)) return true; return false;
+}
+
+/* ---------- alignment (edit distance with backtrace) ---------- */
+function align(ref, hyp, lang){
+  const n = ref.length, m = hyp.length, W = m + 1;
+  const dir = new Uint8Array((n+1)*W); // 1 diag,2 up(del),3 left(ins)
+  let prev = new Float32Array(W), row = new Float32Array(W);
+  for(let j=0;j<=m;j++){ prev[j]=j; dir[j]=3; }
+  for(let i=1;i<=n;i++){
+    row[0]=i; dir[i*W]=2;
+    for(let j=1;j<=m;j++){
+      const r = ref[i-1], h = hyp[j-1];
+      const c = r===h ? 0 : (lang==='zh' && homophone(r,h) ? 0.4 : 1);
+      let best = prev[j-1]+c, d = 1;
+      if(prev[j]+1 < best){ best = prev[j]+1; d = 2; }
+      if(row[j-1]+1 < best){ best = row[j-1]+1; d = 3; }
+      row[j]=best; dir[i*W+j]=d;
+    }
+    [prev,row]=[row,prev];
+  }
+  const ops = []; let i=n, j=m;
+  while(i>0 || j>0){
+    const d = (i===0) ? 3 : (j===0 ? 2 : dir[i*W+j]);
+    if(d===1){ const r=ref[i-1], h=hyp[j-1];
+      ops.push({t: r===h ? 'ok' : (lang==='zh' && homophone(r,h) ? 'homo' : 'sub'), ref:r, hyp:h, ri:i-1, hj:j-1}); i--; j--; }
+    else if(d===2){ ops.push({t:'del', ref:ref[i-1], ri:i-1, hj:j}); i--; }
+    else { ops.push({t:'ins', hyp:hyp[j-1], hj:j-1}); j--; }
+  }
+  return ops.reverse();
+}
+
+/* ---------- recording ---------- */
+let mode = null, startT = 0, lastT = 0, events = [], timerId = null, prevLen = 0;
+let dict = null, sr = null, finalText = '';
+const heard = $('heard');
+
+function recMsg(t){ $('recMsg').hidden = !t; $('recMsg').textContent = t || ''; }
+function setRecording(on){
+  $('stopBtn').hidden = !on; $('kbBtn').hidden = on; $('micBtn').hidden = on || !micAvailable();
+  $('liveTag').hidden = !on;
+  if(on){ timerId = setInterval(tick, 250); } else { clearInterval(timerId); tick(); mode = null; }
+}
+function tick(){
+  const end = mode ? Date.now() : lastT; const s = startT ? Math.max(0,(end-startT)/1000) : 0;
+  $('timer').textContent = Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+}
+function resetRun(){ startT = 0; lastT = 0; events = []; prevLen = 0; finalText = ''; heard.value=''; tick(); }
+function noteGrowth(){
+  const len = tokenize(heard.value, cur() && cur().lang).length;
+  if(len > prevLen && mode){
+    const now = Date.now();
+    if(!startT) startT = now;
+    events.push({t: now, len}); lastT = now;
+  }
+  prevLen = len;
+}
+heard.addEventListener('input', noteGrowth);
+
+$('kbBtn').onclick = () => {
+  if(!cur()){ recMsg('請先在「① 文章」選一篇文章。'); return; }
+  resetRun(); recMsg(''); mode = 'kb'; setRecording(true); heard.focus();
+};
+$('stopBtn').onclick = async () => {
+  if(mode === 'dict' && dict){ try{ await dict.stop(); }catch(e){} }
+  if(mode === 'sr' && sr){ const s = sr; sr = null; try{ s.stop(); }catch(e){} }
+  noteGrowth(); setRecording(false); heard.blur();
+  if(heard.value.trim()) grade();
+};
+
+/* microphone paths: Claude dictation (Chrome) or Web Speech API (when hosted on its own site) */
+// 放在 claude.ai 的框架裡時，瀏覽器不讓網頁直接開麥克風，所以只有獨立網址才用 Web Speech API
+const framed = (() => { try { return window.self !== window.top; } catch(e) { return true; } })();
+const SR = framed ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
+function micAvailable(){ return !!dict || !!SR; }
+function updateMicUI(){
+  $('micBtn').hidden = !micAvailable() || !!mode;
+  const mic = micAvailable();
+  $('kbSteps').hidden = mic; $('kbNote').hidden = mic;
+}
+if(window.claude && claude.use){
+  claude.use('dictation').then(d => {
+    if(!d) return; dict = d; updateMicUI();
+    d.onPartial(({text}) => { if(mode==='dict'){ heard.value = finalText + text; noteGrowth(); } });
+    d.onFinal(({text}) => { if(mode==='dict'){ finalText += (finalText ? text : text.trimStart()); heard.value = finalText; noteGrowth(); } });
+    d.onState(({state, reason}) => {
+      if(state==='idle' && mode==='dict'){ noteGrowth(); setRecording(false);
+        if(reason && !['stopped','viewer_stopped'].includes(reason)) recMsg('錄音中斷（'+reason+'），可改用鍵盤聽寫。');
+        else if(heard.value.trim()) grade();
+      }
+    });
+  }).catch(()=>{});
+}
+$('micBtn').onclick = () => {
+  if(!cur()){ recMsg('請先在「① 文章」選一篇文章。'); return; }
+  resetRun(); recMsg('');
+  const lang = cur().lang === 'en' ? 'en-US' : 'zh-TW';
+  if(dict){
+    mode = 'dict';
+    dict.start({language: lang}).then(()=>setRecording(true)).catch(err => {
+      mode = null; setRecording(false);
+      recMsg(err && err.code === 'not_granted' ? '沒有取得麥克風權限，請改用「鍵盤聽寫」。' : '無法開始錄音，請改用「鍵盤聽寫」。');
+      if(err && (err.code==='not_granted' || err.code==='unavailable')){ dict = null; updateMicUI(); }
+    });
+    return;
+  }
+  if(SR){
+    try{
+      sr = new SR(); sr.lang = lang; sr.continuous = true; sr.interimResults = true;
+      let committed = '';
+      sr.onresult = ev => {
+        let fin = '', interim = '';
+        for(let k = ev.resultIndex; k < ev.results.length; k++){
+          (ev.results[k].isFinal ? (fin += ev.results[k][0].transcript) : (interim += ev.results[k][0].transcript));
+        }
+        committed += fin; heard.value = committed + interim; noteGrowth();
+      };
+      sr.onerror = ev => {
+        if(ev.error === 'no-speech' || ev.error === 'aborted') return;
+        recMsg('麥克風無法使用（' + ev.error + '），請改用「用鍵盤聽寫背誦」。'); sr = null; setRecording(false);
+      };
+      sr.onend = () => { if(sr && mode==='sr'){ try{ sr.start(); }catch(e){} } }; // Safari 會自動停止，重新接上
+      mode = 'sr'; sr.start(); setRecording(true);
+    }catch(e){ recMsg('無法開始錄音，請改用「鍵盤聽寫」。'); mode = null; setRecording(false); }
+  }
+};
+$('clearBtn').onclick = () => { if(mode) $('stopBtn').onclick(); resetRun(); recMsg(''); };
+$('demoBtn').onclick = () => {
+  const a = cur(); if(!a) return;
+  const toks = tokenize(a.body, a.lang);
+  let demo = toks.slice();
+  if(a.lang === 'zh' && demo.length > 8){ demo[3] = '名'; demo.splice(7,1); demo[1] = DIG[3]; }
+  else if(demo.length > 4){ demo.splice(2,1); }
+  const sep = a.lang === 'en' ? ' ' : '';
+  heard.value = demo.join(sep);
+  const base = Date.now() - 20000; startT = base; lastT = base + demo.length * 600 + 2600;
+  events = demo.map((_,k) => ({t: base + k*600 + (k >= Math.floor(demo.length/2) ? 2600 : 0), len:k+1}));
+  prevLen = demo.length; tick(); recMsg('已填入一段有錯字、漏字和一次停頓的範例，按「比對結果」看看。');
+};
+
+/* ---------- grading ---------- */
+let result = null;
+$('gradeBtn').onclick = () => { if(mode) $('stopBtn').onclick(); else grade(); };
+function grade(){
+  const a = cur(); if(!a){ recMsg('請先選一篇文章。'); return; }
+  const hypText = heard.value;
+  if(!hypText.trim()){ recMsg('還沒有背誦內容。'); return; }
+  const ref = tokenize(a.body, a.lang), hyp = tokenize(hypText, a.lang);
+  // pauses: gaps between growth events, located at the hyp index where text resumed
+  const pauses = [];
+  for(let k=1;k<events.length;k++){
+    const gap = (events[k].t - events[k-1].t)/1000;
+    if(gap >= 2) pauses.push({at: events[k-1].len, gap});
+  }
+  const dur = (startT && lastT > startT) ? (lastT - startT)/1000 : 0;
+  result = {a, ref, hyp, hypText, ops: align(ref, hyp, a.lang), pauses, dur, fixed: new Set(), student: $('student').value.trim(), at: new Date()};
+  renderResult(); showTab('res');
+}
+function scores(){
+  const r = result, homoOk = $('homoOk').checked;
+  let ok=0, homo=0, sub=0, del=0, ins=0, fixed=0;
+  r.ops.forEach(o => {
+    if(o.t==='ins'){ ins++; return; }
+    if(r.fixed.has(o.ri) && o.t!=='ok'){ fixed++; return; }
+    if(o.t==='ok') ok++; else if(o.t==='homo') homo++; else if(o.t==='sub') sub++; else del++;
+  });
+  const correct = ok + fixed + (homoOk ? homo : 0);
+  const acc = r.ref.length ? Math.round(correct / r.ref.length * 1000)/10 : 0;
+  const longP = r.pauses.filter(p => p.gap >= 4).length, shortP = r.pauses.length - longP;
+  const flu = r.dur ? Math.max(0, Math.min(100, 100 - shortP*5 - longP*12)) : null;
+  const rate = r.dur > 1 ? Math.round(r.hyp.length / (r.dur/60)) : null;
+  return {acc, correct, ok, homo, sub: sub + (homoOk ? 0 : homo), del, ins, fixed, shortP, longP, flu, rate};
+}
+const band = (v, hi, mid) => v == null ? '' : v >= hi ? 'good' : v >= mid ? 'mid' : 'low';
+const bandText = {good:'很好', mid:'尚可', low:'需加強'};
+function renderResult(){
+  const r = result, s = scores(), unit = r.a.lang==='en' ? '字詞' : '字';
+  $('resEmpty').hidden = true; $('resBody').hidden = false; $('resMsg').hidden = true;
+  $('resTitle').textContent = r.a.title;
+  $('resWho').textContent = (r.student || '未填姓名') + ' · ' + r.at.toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const ab = band(s.acc, 95, 80), fb = band(s.flu, 85, 65);
+  const m = Math.floor(r.dur/60), sec = Math.round(r.dur%60);
+  const stat = (k, v, extra) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${extra||''}</div>`;
+  $('stats').innerHTML =
+    stat('精確度', s.acc+'<small>%</small>', `<span class="pill ${ab}">${bandText[ab]}</span>`) +
+    stat('流暢度', s.flu==null ? '—' : s.flu+'<small>分</small>', s.flu==null ? '<div class="hint">沒有計時資料</div>' : `<span class="pill ${fb}">${bandText[fb]}</span>`) +
+    stat('錯字／漏字／多唸', `${s.sub}<small>／</small>${s.del}<small>／</small>${s.ins}`, `<div class="hint">共 ${r.ref.length} ${unit}，對 ${s.correct} ${unit}</div>`) +
+    stat('停頓', `${s.shortP + s.longP}<small> 次</small>`, `<div class="hint">2–4 秒 ${s.shortP} 次，4 秒以上 ${s.longP} 次</div>`) +
+    stat('用時／速度', r.dur ? `${m}:${String(sec).padStart(2,'0')}` : '—', `<div class="hint">${s.rate ? '每分鐘 '+s.rate+' '+unit : '　'}</div>`);
+  // diff
+  const el = $('diff'); el.textContent = ''; el.className = 'diff' + (r.a.lang==='en' ? ' en' : '');
+  const pauseAt = new Map(r.pauses.map(p => [p.at, p.gap]));
+  const usedPause = new Set();
+  const sep = r.a.lang==='en' ? ' ' : '';
+  r.ops.forEach(o => {
+    if(o.t !== 'del' && pauseAt.has(o.hj) && !usedPause.has(o.hj)){
+      usedPause.add(o.hj);
+      const p = document.createElement('span'); p.className='pause'; p.textContent = '⏸'+Math.round(pauseAt.get(o.hj))+'s'; el.appendChild(p);
+    }
+    if(o.t === 'ins'){ const x = document.createElement('span'); x.className='ins'; x.textContent='+'+o.hyp; el.appendChild(x); el.append(sep); return; }
+    const t = document.createElement('span');
+    const isFixed = r.fixed.has(o.ri) && o.t !== 'ok';
+    const shownType = o.t==='homo' && $('homoOk').checked ? 'homo' : o.t==='homo' ? 'sub' : o.t;
+    t.className = 'tok ' + (isFixed ? 'fixed' : (o.t==='ok' ? '' : shownType));
+    t.textContent = o.ref;
+    if((o.t==='sub' || o.t==='homo') && !isFixed){ const sd = document.createElement('span'); sd.className='said'; sd.textContent=o.hyp; t.appendChild(sd); }
+    if(o.t !== 'ok'){
+      t.title = isFixed ? '老師已改判為正確' : (o.t==='del' ? '漏字' : '唸成「'+o.hyp+'」');
+      t.onclick = () => { r.fixed.has(o.ri) ? r.fixed.delete(o.ri) : r.fixed.add(o.ri); renderResult(); };
+    }
+    el.appendChild(t); el.append(sep);
+  });
+  $('rawHeard').textContent = r.hypText;
+}
+$('homoOk').onchange = () => result && renderResult();
+$('saveRec').onclick = () => {
+  if(!result) return; const s = scores(), r = result;
+  logs.unshift({date: r.at.toISOString(), student: r.student || '未填', title: r.a.title, acc: s.acc, flu: s.flu, sub: s.sub, del: s.del, ins: s.ins, pauses: s.shortP + s.longP, dur: Math.round(r.dur), rate: s.rate});
+  store.set('rc_logs', logs);
+  $('resMsg').hidden = false; $('resMsg').textContent = '已存到紀錄。換下一位學生請回到「② 背誦」。';
+  $('student').value = ''; resetRun();
+};
+
+/* ---------- log ---------- */
+const COLS = [['日期','date'],['學生','student'],['文章','title'],['精確度%','acc'],['流暢度','flu'],['錯字','sub'],['漏字','del'],['多唸','ins'],['停頓','pauses'],['秒數','dur'],['字/分','rate']];
+const fmtDate = iso => { const d = new Date(iso); return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+function renderLog(){
+  const t = $('logTable'); t.textContent = '';
+  if(!logs.length){ t.innerHTML = '<tr><td class="empty">還沒有紀錄。在結果頁按「儲存到紀錄」就會出現在這裡。</td></tr>'; return; }
+  const h = t.insertRow(); COLS.forEach(([k]) => { const th = document.createElement('th'); th.textContent = k; h.appendChild(th); });
+  logs.forEach(l => { const tr = t.insertRow(); COLS.forEach(([,f]) => { tr.insertCell().textContent = f==='date' ? fmtDate(l[f]) : (l[f] ?? '—'); }); });
+}
+$('copyLog').onclick = () => {
+  const tsv = [COLS.map(c=>c[0]).join('\t')].concat(logs.map(l => COLS.map(([,f]) => f==='date' ? fmtDate(l[f]) : (l[f] ?? '')).join('\t'))).join('\n');
+  const done = () => { $('logMsg').hidden=false; $('logMsg').className='msg ok'; $('logMsg').textContent='已複製，可貼到試算表。'; };
+  const fail = () => { const ta = document.createElement('textarea'); ta.value = tsv; ta.style.height='120px'; $('logMsg').hidden=false; $('logMsg').className='msg'; $('logMsg').textContent='無法自動複製，請手動全選下方文字複製：'; $('logMsg').appendChild(ta); ta.select(); };
+  try{ navigator.clipboard.writeText(tsv).then(done, fail); }catch(e){ fail(); }
+};
+$('clearLog').onclick = () => {
+  const b = $('clearLog');
+  if(b.dataset.armed){ logs = []; store.set('rc_logs', logs); renderLog(); delete b.dataset.armed; b.textContent='清空紀錄'; }
+  else { b.dataset.armed = 1; b.textContent = '再按一次確認清空'; setTimeout(()=>{ delete b.dataset.armed; b.textContent='清空紀錄'; }, 3000); }
+};
+
+/* ---------- roster ---------- */
+const DEFAULT_ROSTER = []; // 公開網址版不內建學生名單，請在頁面上輸入
+let roster = store.get('rc_roster', null) || DEFAULT_ROSTER.slice();
+function renderRoster(){
+  const sel = $('student'), keep = sel.value; sel.textContent = '';
+  const ph = document.createElement('option'); ph.value = ''; ph.textContent = roster.length ? '請選擇學生' : '請先到「① 文章」輸入學生名單'; sel.appendChild(ph);
+  roster.forEach(n => { const o = document.createElement('option'); o.textContent = n; sel.appendChild(o); });
+  if(roster.includes(keep)) sel.value = keep;
+  $('rosterBox').value = roster.join('\n');
+}
+$('saveRoster').onclick = () => {
+  roster = $('rosterBox').value.split(/\n/).map(s => s.trim()).filter(s => s && !/^姓名/.test(s)).map(s => {
+    const m = s.match(/^(\D+?)[\s,，]+(\d+)$/); // 「王小明	1」→「1 王小明」
+    return m ? m[2] + ' ' + m[1].trim() : s.replace(/\s+/g, ' ');
+  });
+  store.set('rc_roster', roster); renderRoster();
+  $('rosterMsg').textContent = '已儲存 ' + roster.length + ' 位學生。';
+};
+
+renderLib(); updateMicUI(); renderRoster();
+})();
+</script>
+</body>
+</html>
